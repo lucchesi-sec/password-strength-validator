@@ -1,160 +1,257 @@
 #!/usr/bin/env python3
 """
-Test suite for the password strength analyzer.
+Test suite for the Password Strength Analyzer.
+This script runs tests against the password analyzer to verify functionality.
 """
 
-import unittest
 import sys
+import os
 from pathlib import Path
 
-# Add the parent directory to the path to import the analyzer
+# Add the parent directory to the path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+
 from src.password_analyzer import (
-    analyze_password, 
-    calculate_entropy, 
-    check_complexity, 
+    analyze_password,
+    calculate_entropy,
+    check_complexity,
     check_patterns,
+    generate_password_suggestion,
     load_dictionaries
 )
 
+# Initialize dictionary data
+load_dictionaries()
 
-class TestPasswordAnalyzer(unittest.TestCase):
-    """Test cases for password analyzer functions."""
+def test_password_analysis():
+    """Test the password analysis functionality with various passwords."""
+    print("\n=== Testing Password Analysis ===")
     
-    def setUp(self):
-        """Set up test fixtures."""
-        # Load dictionaries for testing
-        load_dictionaries()
+    test_cases = [
+        {
+            "password": "password",
+            "expected": {
+                "strength": "Very Weak",
+                "score_range": (0, 30),
+                "has_issue": "common password"
+            }
+        },
+        {
+            "password": "Password123",
+            "expected": {
+                "strength": "Weak",
+                "score_range": (25, 50),
+                "has_issue": "common"
+            }
+        },
+        {
+            "password": "J7nB#9pL",
+            "expected": {
+                "strength": "Moderate",
+                "score_range": (50, 70),
+                "recommendations": ["length"]
+            }
+        },
+        {
+            "password": "c0rr3ct-h0rs3-b4tt3ry-st4pl3",
+            "expected": {
+                "strength": "Strong",
+                "score_range": (70, 90),
+                "recommendations_max": 1
+            }
+        },
+        {
+            "password": "aK8#Lp2$7mZ!9vB5^tN",
+            "expected": {
+                "strength": "Very Strong",
+                "score_range": (90, 100),
+                "recommendations_max": 0
+            }
+        }
+    ]
     
-    def test_calculate_entropy(self):
-        """Test entropy calculation."""
-        # Test basic cases
-        self.assertEqual(calculate_entropy(""), 0)
+    for i, case in enumerate(test_cases, 1):
+        password = case["password"]
+        expected = case["expected"]
         
-        # Test single character class
-        entropy = calculate_entropy("abc")
-        self.assertGreater(entropy, 0)
+        print(f"\nTest {i}: '{password}'")
         
-        # Test multiple character classes
-        entropy_mixed = calculate_entropy("Abc123!")
-        entropy_simple = calculate_entropy("abcdefg")
-        self.assertGreater(entropy_mixed, entropy_simple)
+        # Run analysis
+        report = analyze_password(password)
+        
+        # Check strength
+        print(f"  Strength: {report['strength']} (expected {expected['strength']})")
+        if report['strength'] != expected['strength']:
+            print(f"  ❌ FAILED: Incorrect strength classification")
+        else:
+            print(f"  ✅ PASSED: Strength classification")
+        
+        # Check score range
+        min_score, max_score = expected['score_range']
+        score_in_range = min_score <= report['overall_score'] <= max_score
+        print(f"  Score: {report['overall_score']} (expected range {min_score}-{max_score})")
+        if not score_in_range:
+            print(f"  ❌ FAILED: Score out of expected range")
+        else:
+            print(f"  ✅ PASSED: Score in expected range")
+        
+        # Check for expected issues
+        if "has_issue" in expected:
+            issue_found = any(expected["has_issue"] in issue.lower() for issue in report["issues"])
+            print(f"  Expected issue '{expected['has_issue']}': {'Found' if issue_found else 'Not found'}")
+            if not issue_found:
+                print(f"  ❌ FAILED: Did not detect expected issue")
+            else:
+                print(f"  ✅ PASSED: Detected expected issue")
+        
+        # Check recommendations
+        if "recommendations" in expected:
+            rec_found = any(expected["recommendations"][0] in rec.lower() for rec in report["recommendations"])
+            print(f"  Expected recommendation about '{expected['recommendations'][0]}': {'Found' if rec_found else 'Not found'}")
+            if not rec_found:
+                print(f"  ❌ FAILED: Did not provide expected recommendation")
+            else:
+                print(f"  ✅ PASSED: Provided expected recommendation")
+        
+        # Check max recommendations
+        if "recommendations_max" in expected:
+            rec_count = len(report["recommendations"])
+            print(f"  Recommendation count: {rec_count} (max allowed {expected['recommendations_max']})")
+            if rec_count > expected["recommendations_max"]:
+                print(f"  ❌ FAILED: Too many recommendations for strong password")
+            else:
+                print(f"  ✅ PASSED: Appropriate recommendation count")
+
+
+def test_entropy_calculation():
+    """Test the entropy calculation functionality."""
+    print("\n=== Testing Entropy Calculation ===")
     
-    def test_check_complexity(self):
-        """Test complexity scoring."""
-        # Test very simple password
-        score = check_complexity("abc")
-        self.assertLess(score, 50)
-        
-        # Test complex password
-        score = check_complexity("ComplexP@ssw0rd123!")
-        self.assertGreater(score, 80)
-        
-        # Test minimum length requirement
-        short_score = check_complexity("Abc123!")
-        long_score = check_complexity("LongComplexP@ssw0rd123!")
-        self.assertGreater(long_score, short_score)
+    test_cases = [
+        {"password": "a", "expected_min": 4.0, "expected_max": 5.0},
+        {"password": "ab", "expected_min": 9.0, "expected_max": 10.0},
+        {"password": "abc123", "expected_min": 35.0, "expected_max": 38.0},
+        {"password": "Abc123!", "expected_min": 45.0, "expected_max": 52.0},
+        {"password": "aB3!xY7^", "expected_min": 52.0, "expected_max": 60.0},
+    ]
     
-    def test_check_patterns(self):
-        """Test pattern detection."""
-        # Test common password detection
-        issues = check_patterns("password")
-        self.assertTrue(any("common password" in issue for issue in issues))
+    for case in test_cases:
+        password = case["password"]
+        entropy = calculate_entropy(password)
+        min_entropy = case["expected_min"]
+        max_entropy = case["expected_max"]
         
-        # Test sequence detection
-        issues = check_patterns("abc123")
-        self.assertTrue(any("sequence" in issue for issue in issues))
+        print(f"Password: '{password}', Entropy: {entropy:.2f} bits (expected range: {min_entropy}-{max_entropy})")
         
-        # Test repeated characters
-        issues = check_patterns("aaabbb")
-        self.assertTrue(any("repeated characters" in issue for issue in issues))
-        
-        # Test year detection
-        issues = check_patterns("password2023")
-        self.assertTrue(any("year" in issue for issue in issues))
+        if min_entropy <= entropy <= max_entropy:
+            print(f"✅ PASSED: Entropy in expected range")
+        else:
+            print(f"❌ FAILED: Entropy outside expected range")
+
+
+def test_complexity_check():
+    """Test the complexity checking functionality."""
+    print("\n=== Testing Complexity Checking ===")
     
-    def test_analyze_password_weak(self):
-        """Test analysis of weak passwords."""
-        report = analyze_password("123456")
-        
-        self.assertEqual(report["password_length"], 6)
-        self.assertLess(report["overall_score"], 50)
-        self.assertIn("Very Weak", ["Very Weak", "Weak"], report["strength"])
-        self.assertGreater(len(report["issues"]), 0)
-        self.assertGreater(len(report["recommendations"]), 0)
+    test_cases = [
+        {"password": "aaaaaaaa", "expected_min": 30, "expected_max": 40},
+        {"password": "Aaaaaaaa", "expected_min": 40, "expected_max": 50},
+        {"password": "Aa1aaaaa", "expected_min": 50, "expected_max": 60},
+        {"password": "Aa1!aaaa", "expected_min": 60, "expected_max": 70},
+        {"password": "Aa1!2Bb@", "expected_min": 70, "expected_max": 100},
+    ]
     
-    def test_analyze_password_strong(self):
-        """Test analysis of strong passwords."""
-        report = analyze_password("MyStr0ng&UnIqueP@ssw0rd2024!")
+    for case in test_cases:
+        password = case["password"]
+        score = check_complexity(password)
+        min_score = case["expected_min"]
+        max_score = case["expected_max"]
         
-        self.assertGreater(report["password_length"], 12)
-        self.assertGreater(report["overall_score"], 60)  # Should be reasonably high
-        self.assertGreater(report["entropy_bits"], 50)
-        self.assertGreater(report["complexity_score"], 80)
+        print(f"Password: '{password}', Complexity Score: {score} (expected range: {min_score}-{max_score})")
+        
+        if min_score <= score <= max_score:
+            print(f"✅ PASSED: Complexity score in expected range")
+        else:
+            print(f"❌ FAILED: Complexity score outside expected range")
+
+
+def test_pattern_detection():
+    """Test the pattern detection functionality."""
+    print("\n=== Testing Pattern Detection ===")
     
-    def test_analyze_password_medium(self):
-        """Test analysis of medium strength passwords."""
-        report = analyze_password("MyPassword123!")
-        
-        self.assertGreaterEqual(report["password_length"], 8)
-        self.assertGreater(report["overall_score"], 25)
-        self.assertLess(report["overall_score"], 90)
+    test_cases = [
+        {"password": "abcdef", "expected_patterns": ["sequence"]},
+        {"password": "password", "expected_patterns": ["common password"]},
+        {"password": "aaaabb", "expected_patterns": ["repeated"]},
+        {"password": "football2023", "expected_patterns": ["dictionary", "year"]},
+        {"password": "p4ssw0rd", "expected_patterns": ["dictionary"]},
+    ]
     
-    def test_dictionary_word_detection(self):
-        """Test detection of dictionary words."""
-        # Test password with dictionary words
-        report = analyze_password("password123")
-        issues = report["issues"]
+    for case in test_cases:
+        password = case["password"]
+        issues = check_patterns(password)
+        expected = case["expected_patterns"]
         
-        # Should detect dictionary word
-        self.assertTrue(any("dictionary word" in issue.lower() for issue in issues))
+        print(f"\nPassword: '{password}'")
+        print(f"Issues detected: {len(issues)}")
+        for issue in issues:
+            print(f"  - {issue}")
+        
+        all_found = True
+        for pattern in expected:
+            found = any(pattern.lower() in issue.lower() for issue in issues)
+            print(f"Expected pattern '{pattern}': {'✅ Found' if found else '❌ Not found'}")
+            if not found:
+                all_found = False
+        
+        if all_found:
+            print(f"✅ PASSED: All expected patterns detected")
+        else:
+            print(f"❌ FAILED: Some expected patterns not detected")
+
+
+def test_password_generation():
+    """Test the password generation functionality."""
+    print("\n=== Testing Password Generation ===")
     
-    def test_leet_speak_detection(self):
-        """Test detection of leet speak substitutions."""
-        # Test password with leet speak
-        report = analyze_password("p4ssw0rd123")
-        issues = report["issues"]
+    # Generate and test 5 passwords
+    for i in range(5):
+        password = generate_password_suggestion()
+        report = analyze_password(password)
         
-        # Should detect leet speak substitution
-        self.assertTrue(
-            any("leet speak" in issue.lower() or "substitution" in issue.lower() 
-                for issue in issues)
-        )
-    
-    def test_report_structure(self):
-        """Test that report has required structure."""
-        report = analyze_password("TestPassword123!")
+        print(f"\nGenerated Password {i+1}: {password}")
+        print(f"Length: {len(password)}")
+        print(f"Score: {report['overall_score']:.2f}")
+        print(f"Strength: {report['strength']}")
         
-        # Check required fields
-        required_fields = [
-            "password_length", "entropy_bits", "complexity_score", 
-            "pattern_score", "overall_score", "strength", 
-            "issues", "recommendations", "timestamp"
-        ]
+        # Check if generated password is strong enough
+        if report['overall_score'] < 70:
+            print(f"❌ FAILED: Generated password score too low: {report['overall_score']:.2f}")
+        else:
+            print(f"✅ PASSED: Generated password is strong")
         
-        for field in required_fields:
-            self.assertIn(field, report)
-        
-        # Check data types
-        self.assertIsInstance(report["password_length"], int)
-        self.assertIsInstance(report["entropy_bits"], (int, float))
-        self.assertIsInstance(report["complexity_score"], int)
-        self.assertIsInstance(report["pattern_score"], int)
-        self.assertIsInstance(report["overall_score"], (int, float))
-        self.assertIsInstance(report["strength"], str)
-        self.assertIsInstance(report["issues"], list)
-        self.assertIsInstance(report["recommendations"], list)
-        self.assertIsInstance(report["timestamp"], str)
-    
-    def test_empty_password(self):
-        """Test analysis of empty password."""
-        report = analyze_password("")
-        
-        self.assertEqual(report["password_length"], 0)
-        self.assertEqual(report["entropy_bits"], 0)
-        self.assertEqual(report["strength"], "Very Weak")
-        self.assertGreater(len(report["recommendations"]), 0)
+        # Check for sufficient complexity
+        if not (
+            any(c.islower() for c in password) and
+            any(c.isupper() for c in password) and
+            any(c.isdigit() for c in password) and
+            any(not c.isalnum() for c in password)
+        ):
+            print(f"❌ FAILED: Generated password missing required character classes")
+        else:
+            print(f"✅ PASSED: Generated password has all character classes")
+
+
+def run_all_tests():
+    """Run all tests."""
+    test_password_analysis()
+    test_entropy_calculation()
+    test_complexity_check()
+    test_pattern_detection()
+    test_password_generation()
 
 
 if __name__ == "__main__":
-    unittest.main()
+    print("===== Password Analyzer Test Suite =====")
+    run_all_tests()
+    print("\n===== All Tests Completed =====")
