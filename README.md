@@ -1,6 +1,6 @@
 # Password Strength Validator
 
-![Python](https://img.shields.io/badge/Python-3.6+-blue) ![Security](https://img.shields.io/badge/Security-Password%20Analysis-red) ![NIST](https://img.shields.io/badge/Standard-NIST%20SP%20800--63B-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Python](https://img.shields.io/badge/Python-3.6+-blue) ![Tools](https://img.shields.io/badge/Platform-Security%20Tools-orange) ![Security](https://img.shields.io/badge/Focus-Password%20Analysis-red) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-1.0.0-purple)
 
 A comprehensive password strength analysis tool that evaluates passwords against NIST SP 800-63B and OWASP guidelines. The analyzer provides detailed security assessments with entropy calculations, pattern detection, and specific recommendations for improvement.
 
