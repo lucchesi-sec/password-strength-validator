@@ -15,9 +15,13 @@ from pathlib import Path
 import json
 import time
 
-# Add the parent directory to the path
-sys.path.append(str(Path(__file__).parent.parent))
-from src.password_analyzer import analyze_password, print_report, generate_password_suggestion
+# Use conditional import for both direct execution and module execution
+try:
+    # For direct script execution
+    from password_analyzer import analyze_password, print_report, generate_password_suggestion
+except ImportError:
+    # For module execution
+    from .password_analyzer import analyze_password, print_report, generate_password_suggestion
 
 # ANSI color codes
 RESET = "\033[0m"
